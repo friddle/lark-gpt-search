@@ -1,0 +1,7 @@
+.feishu.env
+.idea/
+.vscode
+dist/
+.chatgpt.env
+.machines.yaml
+laiye/

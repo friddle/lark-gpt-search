@@ -16,6 +16,7 @@ type FeishuClient struct {
 	LarkClient  *lark.Lark
 	RedirectUrl string
 	UserTokens  map[string]*string
+	ImgDir      string
 }
 
 func NewFeishuClient(ctx context.Context, conf *chatbot.Config) *FeishuClient {
@@ -37,6 +38,10 @@ func (c FeishuClient) GenAuthToken(userId string) (lark.MethodOptionFunc, error)
 		return nil, errors.New("not found user token")
 	}
 	return lark.WithUserAccessToken(*token), nil
+}
+
+func (c FeishuClient) WithAuthToken() {
+
 }
 
 func (c *FeishuClient) GetAccessToken(urlStr string) (error, string) {

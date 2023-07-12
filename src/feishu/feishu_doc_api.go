@@ -9,11 +9,10 @@ import (
 	"path/filepath"
 )
 
-func (c *FeishuClient) GetDocContent(docToken string) (*lark.DocContent, error) {
-	method := c.WithAuthToken()
+func (c *FeishuClient) GetDocContent(docToken string, options ...lark.MethodOptionFunc) (*lark.DocContent, error) {
 	resp, _, err := c.LarkClient.Drive.GetDriveDocContent(c.Ctx, &lark.GetDriveDocContentReq{
 		DocToken: docToken,
-	}, method)
+	}, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -26,12 +25,11 @@ func (c *FeishuClient) GetDocContent(docToken string) (*lark.DocContent, error) 
 	return doc, nil
 }
 
-func (c *FeishuClient) GetSheetClient(sheetId string, docToken string) (*lark.SheetContent, error) {
-	method := c.WithAuthToken()
+func (c *FeishuClient) GetSheetClient(sheetId string, docToken string, options ...lark.MethodOptionFunc) (*lark.SheetContent, error) {
 	resp, _, err := c.LarkClient.Drive.GetSheet(c.Ctx, &lark.GetSheetReq{
 		SheetID:          sheetId,
 		SpreadSheetToken: docToken,
-	}, method)
+	}, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +39,10 @@ func (c *FeishuClient) GetSheetClient(sheetId string, docToken string) (*lark.Sh
 
 }
 
-func (c *FeishuClient) DownloadImage(imgToken string) (string, error) {
-	method := c.WithAuthToken()
+func (c *FeishuClient) DownloadImage(imgToken string, options ...lark.MethodOptionFunc) (string, error) {
 	resp, _, err := c.LarkClient.Drive.DownloadDriveMedia(c.Ctx, &lark.DownloadDriveMediaReq{
 		FileToken: imgToken,
-	}, method)
+	}, options...)
 	if err != nil {
 		return imgToken, err
 	}
@@ -68,11 +65,10 @@ func (c *FeishuClient) DownloadImage(imgToken string) (string, error) {
 	return filename, nil
 }
 
-func (c *FeishuClient) GetDocxContent(docToken string) (*lark.DocxDocument, []*lark.DocxBlock, error) {
-	method := c.WithAuthToken()
+func (c *FeishuClient) GetDocxContent(docToken string, options ...lark.MethodOptionFunc) (*lark.DocxDocument, []*lark.DocxBlock, error) {
 	resp, _, err := c.LarkClient.Drive.GetDocxDocument(c.Ctx, &lark.GetDocxDocumentReq{
 		DocumentID: docToken,
-	}, method)
+	}, options...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,7 +83,7 @@ func (c *FeishuClient) GetDocxContent(docToken string) (*lark.DocxDocument, []*l
 		resp2, _, err := c.LarkClient.Drive.GetDocxBlockListOfDocument(c.Ctx, &lark.GetDocxBlockListOfDocumentReq{
 			DocumentID: docx.DocumentID,
 			PageToken:  pageToken,
-		}, method)
+		}, options...)
 		if err != nil {
 			return docx, nil, err
 		}
@@ -101,26 +97,24 @@ func (c *FeishuClient) GetDocxContent(docToken string) (*lark.DocxDocument, []*l
 	return docx, blocks, nil
 }
 
-func (c *FeishuClient) GetWikiNodeInfo(token string) (*lark.GetWikiNodeRespNode, error) {
-	method := c.WithAuthToken()
+func (c *FeishuClient) GetWikiNodeInfo(token string, options ...lark.MethodOptionFunc) (*lark.GetWikiNodeRespNode, error) {
 	resp, _, err := c.LarkClient.Drive.GetWikiNode(c.Ctx, &lark.GetWikiNodeReq{
 		Token: token,
-	}, method)
+	}, options...)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Node, nil
 }
 
-func (c *FeishuClient) GetWikiNodeList(spaceId string, parentNodeToken *string, pageToken *string) ([]*lark.GetWikiNodeListRespItem, *string, error) {
-	tokenFunc := c.WithAuthToken()
+func (c *FeishuClient) GetWikiNodeList(spaceId string, parentNodeToken *string, pageToken *string, options ...lark.MethodOptionFunc) ([]*lark.GetWikiNodeListRespItem, *string, error) {
 	size := int64(50)
 	resp, _, err := c.LarkClient.Drive.GetWikiNodeList(c.Ctx, &lark.GetWikiNodeListReq{
 		SpaceID:         spaceId,
 		PageSize:        &size,
 		PageToken:       pageToken,
 		ParentNodeToken: parentNodeToken,
-	}, tokenFunc)
+	}, options...)
 	if err != nil {
 		return nil, nil, err
 	}

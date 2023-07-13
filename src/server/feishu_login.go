@@ -11,7 +11,7 @@ import (
 )
 
 func AuthPage(c *zoox.Context, url *url.URL, feishuApiClient *feishu.FeishuClient) {
-	err, token := feishuApiClient.GetAccessToken(url.Path)
+	err, token := feishuApiClient.SetAccessTokenByUrl(url.Path)
 	if err != nil {
 		logger.Error("+v", err)
 		return

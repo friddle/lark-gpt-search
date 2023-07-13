@@ -40,11 +40,20 @@ func (c FeishuClient) GenAuthToken(userId string) (lark.MethodOptionFunc, error)
 	return lark.WithUserAccessToken(*token), nil
 }
 
-func (c FeishuClient) WithAuthToken() {
-
+func (c FeishuClient) IsAuthWork(userId string) bool {
+	option, err := c.GenAuthToken(userId)
+	if err != nil {
+		return false
+	}
+	_, _, err = c.LarkClient.Auth.GetUserInfo(c.Ctx, &lark.GetUserInfoReq{}, option)
+	//TODO: check is user work
+	if err != nil {
+		return false
+	}
+	return true
 }
 
-func (c *FeishuClient) GetAccessToken(urlStr string) (error, string) {
+func (c *FeishuClient) SetAccessTokenByUrl(urlStr string) (error, string) {
 	urlParse, _ := url.Parse(urlStr)
 	code := urlParse.Query().Get("code")
 	req := lark.GetAccessTokenReq{Code: code, GrantType: "authorization_code"}

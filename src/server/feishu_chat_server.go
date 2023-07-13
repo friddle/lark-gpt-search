@@ -53,6 +53,55 @@ func ReplyText(reply func(context string, msgType ...string) error, text string)
 	if err := reply(string(content), msgType); err != nil {
 		logger.Info(fmt.Sprintf("failed to reply: %v", err))
 	}
+	return nil
+}
+
+func ReplyTextWithLinks(reply func(context string, msgType ...string) error, text string, links map[string]string, questions map[string]string) error {
+	if text == "" {
+		text = "服务没有返回"
+	}
+	contentBody := &mc.ContentTypePost{
+		ZhCN: &mc.ContentTypePostBody{
+			Content: [][]mc.ContentTypePostBodyItem{
+				{
+					{
+						Tag:      "text",
+						UnEscape: false,
+						Text:     text,
+					},
+				},
+			},
+		},
+	}
+	if len(links) > 0 {
+		linkItems := make([]mc.ContentTypePostBodyItem, 0)
+		for title, link := range links {
+			linkItems = append(linkItems, mc.ContentTypePostBodyItem{
+				Tag:  "link",
+				Text: title,
+				Href: link,
+			})
+		}
+		contentBody.ZhCN.Content = append(contentBody.ZhCN.Content, linkItems)
+	}
+	if len(questions) > 0 {
+		linkItems := make([]mc.ContentTypePostBodyItem, 0)
+		for title, link := range questions {
+			linkItems = append(linkItems, mc.ContentTypePostBodyItem{
+				Tag:  "link",
+				Text: title,
+				Href: link,
+			})
+		}
+		contentBody.ZhCN.Content = append(contentBody.ZhCN.Content, linkItems)
+	}
+	msgType, content, err := mc.NewContent().Post(contentBody).Build()
+	if err != nil {
+		return fmt.Errorf("failed to build content: %v", err)
+	}
+	if err := reply(string(content), msgType); err != nil {
+		logger.Info(fmt.Sprintf("failed to reply: %v", err))
+	}
 
 	return nil
 }
@@ -108,15 +157,23 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 			logger.Infof("ignore empty command message")
 			return nil
 		}
-		context, _ := searchClient.GetContext(request.Event.Message.RootID, request.Event.Sender.SenderID.UserID)
-		searchClient.Search(context, text, func(isAuth bool, content string, links []string, err error) {
+		argsMap := map[string]string{}
+		args := strings.Split(text, " ")
+		for _, arg := range args {
+			if strings.Contains("--", arg) {
+				argItem := strings.Split(arg, "--")
+				if len(argItem) != 2 {
+					ReplyText(reply, fmt.Sprintf("参数错误 %s", arg))
+				}
+				argsMap[argItem[0]] = argItem[1]
+			}
+		}
+		context, _ := searchClient.GetContext(request.Event.Message.RootID, request.Event.Sender.SenderID.UserID, argsMap)
+		searchClient.Search(context, text, func(isAuth bool, content string, question map[string]string, links map[string]string, err error) {
 			if !isAuth {
 				authHandler([]string{}, request, reply)
 			}
-			ReplyText(reply, content)
-			if len(links) != 0 {
-				ReplyText(reply, strings.Join(links, " "))
-			}
+			ReplyTextWithLinks(reply, content, links, question)
 		})
 		return nil
 	})

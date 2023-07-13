@@ -7,6 +7,7 @@ import (
 	"feishu-gpt-search/src/llama"
 	"feishu-gpt-search/src/server"
 	"fmt"
+	chatgpt "github.com/go-zoox/chatgpt-client"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
@@ -16,7 +17,8 @@ func main() {
 	ctx := context.Background()
 	feishuConf := config.ReadFeishuConfig()
 	feishuApiClient := feishu.NewFeishuClient(ctx, feishuConf)
-	searchClient := &llama.SearchChainClient{}
+	gptClient, _ := chatgpt.New(config.ReadChatGptClient())
+	searchClient, _ := llama.NewSearchClient(gptClient, feishuApiClient)
 	println(fmt.Sprintf("info:%v", feishuConf))
 	bot, err := server.FeishuServer(feishuConf, searchClient, feishuApiClient)
 	if err != nil {

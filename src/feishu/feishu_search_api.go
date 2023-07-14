@@ -69,7 +69,7 @@ func (client *FeishuClient) SearchDocs(query string, count int64, ownerId []stri
 }
 
 func (client *FeishuClient) GetFileContent(token string, docType string, title string, options ...lark.MethodOptionFunc) (string, error) {
-	cachePath := fmt.Sprintf("%s/%s.%s.txt", "cache", token, docType)
+	cachePath := fmt.Sprintf("%s/%s.%s.txt", client.CacheDir, token, docType)
 	if utils.Exists(cachePath) {
 		text, _ := os.ReadFile(cachePath)
 		if string(text) == "" {
@@ -78,7 +78,7 @@ func (client *FeishuClient) GetFileContent(token string, docType string, title s
 			return string(text), nil
 		}
 	}
-	content, err := client.getFileContentByApi(token, docType, title, options...)
+	content, err := client.GetFileContentByApi(token, docType, title, options...)
 	if err != nil {
 		return content, nil
 	}
@@ -88,7 +88,7 @@ func (client *FeishuClient) GetFileContent(token string, docType string, title s
 }
 
 // 以后加缓存功能
-func (client *FeishuClient) getFileContentByApi(token string, docType string, title string, options ...lark.MethodOptionFunc) (string, error) {
+func (client *FeishuClient) GetFileContentByApi(token string, docType string, title string, options ...lark.MethodOptionFunc) (string, error) {
 
 	parser := NewParser(client.Ctx)
 	if docType == "docx" {
@@ -100,8 +100,8 @@ func (client *FeishuClient) getFileContentByApi(token string, docType string, ti
 		return parser.ParseDocContent(documents), nil
 	}
 	if docType == "sheet" {
-		//documents, _ := feishuClient.GetSheetClient(entity.DocsToken)
-		//parser.ParseSheetContent(entity.DocsToken)
+		//sheetContent, _ := client.GetSheetDoc(token, options...)
+		//parser.ParseSheetContent(sheetContent)
 	}
 
 	return "", errors.New(fmt.Sprintf("没有支持的格式,或者格式不正确 %s", token))
@@ -109,22 +109,28 @@ func (client *FeishuClient) getFileContentByApi(token string, docType string, ti
 }
 
 func (client *FeishuClient) SearchDocsWithResult(query string, count int64, ownerId []string, docTypes []string, options ...lark.MethodOptionFunc) (map[string]string, map[string]string, error) {
+	log.Printf(fmt.Sprintf("search doc query:%s", query))
 	entityRsp, err := client.SearchDocs(query, count, ownerId, docTypes, options...)
+	linkMap := make(map[string]string)
 	if err != nil {
 		return nil, nil, err
 	}
 	contents := make(map[string]string, 0)
 	for index, entity := range entityRsp {
-		if index < 10 {
+		if index <= int(count) {
 			node, err := client.GetWikiNodeInfo(entity.NodeID, options...)
+			if node.ObjType == "sheet" {
+				continue
+			}
 			rsp, err := client.GetFileContent(node.ObjToken, node.ObjType, node.Title, options...)
+			linkMap[entity.Title] = entity.URL
 			if err != nil {
 				log.Printf(fmt.Sprintf("get doc type rsp:%v", rsp))
 			}
 			contents[entity.Title] = rsp
 		}
 	}
-	return contents, make(map[string]string), nil
+	return contents, linkMap, nil
 }
 
 func (client *FeishuClient) GetBaike(entityIds []string, options ...lark.MethodOptionFunc) (map[string]lark.GetBaikeEntityResp, error) {

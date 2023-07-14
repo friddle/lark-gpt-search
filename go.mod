@@ -15,7 +15,6 @@ require (
 	github.com/grokify/html-strip-tags-go v0.0.1
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/russross/blackfriday/v2 v2.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

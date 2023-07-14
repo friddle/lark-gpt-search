@@ -11,6 +11,7 @@ import (
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
+	"os"
 )
 
 func main() {
@@ -24,16 +25,14 @@ func main() {
 	if err != nil {
 		logger.Fatalf("bot error:%v", err)
 	}
-	if err := bot.Run(); err != nil {
-		logger.Fatalf("bot error:%v", err)
-	}
 
 	authPage := func(c *zoox.Context) {
 		server.AuthPage(c, c.Request.URL, feishuApiClient)
 	}
-
 	app := defaults.Application()
+	logger.Info("registry auth path" + os.Getenv("FEISHU_AUTH_PATH"))
+	logger.Info("registry event path" + feishuConf.Path)
+	app.Get(os.Getenv("FEISHU_AUTH_PATH"), authPage)
 	app.Post(feishuConf.Path, bot.Handler())
-	app.Get(feishuConf.Path+"/auth", authPage)
 	app.Run(fmt.Sprintf(":%d", feishuConf.Port))
 }

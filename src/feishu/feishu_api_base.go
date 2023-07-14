@@ -3,10 +3,12 @@ package feishu
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/chyroc/lark"
 	"github.com/go-zoox/chatbot-feishu"
 	"log"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -16,20 +18,26 @@ type FeishuClient struct {
 	LarkClient  *lark.Lark
 	RedirectUrl string
 	UserTokens  map[string]*string
-	ImgDir      string
+	CacheDir    string
 }
 
 func NewFeishuClient(ctx context.Context, conf *chatbot.Config) *FeishuClient {
-	return &FeishuClient{
+	client := &FeishuClient{
 		LarkClient: lark.New(
 			lark.WithAppCredential(conf.AppID, conf.AppSecret),
 			lark.WithOpenBaseURL("https://open.feishu.cn"),
 			lark.WithTimeout(60*time.Second),
 		),
-		Ctx:        ctx,
-		conf:       conf,
-		UserTokens: make(map[string]*string),
+		Ctx:         ctx,
+		conf:        conf,
+		RedirectUrl: os.Getenv("FEISHU_REDIRECT_URL") + os.Getenv("FEISHU_AUTH_PATH"),
+		CacheDir:    os.Getenv("FEISHU_CACHE_FOLDER"),
+		UserTokens:  make(map[string]*string),
 	}
+	if client.CacheDir == "" {
+		client.CacheDir = "./cache"
+	}
+	return client
 }
 
 func (c FeishuClient) GenAuthToken(userId string) (lark.MethodOptionFunc, error) {
@@ -53,6 +61,11 @@ func (c FeishuClient) IsAuthWork(userId string) bool {
 	return true
 }
 
+func (c *FeishuClient) SetAccessToken(userId string, token string) (error, string) {
+	c.UserTokens[userId] = &token
+	return nil, token
+}
+
 func (c *FeishuClient) SetAccessTokenByUrl(urlStr string) (error, string) {
 	urlParse, _ := url.Parse(urlStr)
 	code := urlParse.Query().Get("code")
@@ -61,6 +74,7 @@ func (c *FeishuClient) SetAccessTokenByUrl(urlStr string) (error, string) {
 	if err != nil {
 		return err, ""
 	}
+	log.Println(fmt.Sprintf("userId:%s,token:%s", resp.UserID, resp.AccessToken))
 	c.UserTokens[resp.UserID] = &resp.AccessToken
 	return nil, resp.AccessToken
 }

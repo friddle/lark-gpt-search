@@ -99,14 +99,14 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 	if len(context.searchKey) != 0 {
 		searchKey = context.searchKey
 	} else {
-		_, keyWords, error := client.TranslateQuestionToKeyWord(context, question)
+		_, keyWords, info, error := client.TranslateQuestionToKeyWord(context, question)
 		if error != nil {
-			reply(true, "翻译关键词失败", nil, nil, error)
+			reply(true, "翻译关键词失败:chatgpt 返回"+info, nil, nil, error)
 			return
 		}
 		searchKey = keyWords
 	}
-	reply(true, fmt.Sprintf("搜索关键词:%s", strings.Join(searchKey, ";")), nil, nil, nil)
+	reply(true, fmt.Sprintf("搜索关键词:%s", strings.Join(searchKey, " ")), nil, nil, nil)
 	_, documentContent, links, err := client.SearchFeishuDoc(context, searchKey)
 	if err != nil {
 		reply(true, "搜索文档失败", nil, nil, err)
@@ -116,9 +116,9 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 		reply(true, "没有搜索到相应的文档。请切换搜索词汇或者设置 --searchKey=", nil, nil, err)
 		return
 	}
-	_, answer, moreQuestion, err := client.TranslateAnswer(context, question, documentContent)
+	_, answer, moreQuestion, info, err := client.TranslateAnswer(context, question, documentContent)
 	if err != nil {
-		reply(true, "理解答案失败(请不要使用太长的文档)"+answer, nil, nil, err)
+		reply(true, "理解答案失败(请不要使用太长的文档),ChatGPT返回:"+info, nil, nil, err)
 		return
 	}
 	reply(true, "结果为:"+answer, moreQuestion, links, nil)
@@ -126,37 +126,30 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 }
 
 // 是否继续搜索,并且把问题转换为关键词
-func (client *SearchChainClient) TranslateQuestionToKeyWord(context *SearchContext, question string) (bool, []string, error) {
+func (client *SearchChainClient) TranslateQuestionToKeyWord(context *SearchContext, question string) (bool, []string, string, error) {
 	defaultQuestionTmpl := `
        You are a professional search engine optimization (SEO) expert. 
-       Your task is to extract relevant search terms based on the following background Infromation and Wiki and user Question
-       And Return Search KeyWord,if multiple keyword,split by ';'
-       Background Information: %s
-       Wiki: %s
-       PreviewInfo: %s
+       Your task is to extract search keyword based on Question And Return Search KeyWord,
+       If multiple keyword,split by ';'
        Question:%s
 
-       And Output with format:
-       KeyWord: KeyWord Here
+       And Output Info with Format,Not Change Format:
+       关键词: KeyWord Here
     `
 	if utils.Exists(".prompt_search.txt") {
 		defaultQuestionTmplByte, _ := os.ReadFile(".prompt_search.txt")
 		defaultQuestionTmpl = string(defaultQuestionTmplByte)
 	}
 
-	Wiki, err := client.GetBaike(context)
-	if err != nil {
-		return true, nil, err
-	}
 	history := strings.Join(context.askHistory, "\r")
 	if history == "" {
 		history = "No History"
 	}
-	keyWordStr, _ := client.AskChatGpt(context, 1000, []string{"KeyWord"}, defaultQuestionTmpl,
-		context.background, Wiki, history, question,
+	keyWordStr, info, _ := client.AskChatGpt(context, 1000, []string{"关键词"}, defaultQuestionTmpl,
+		question,
 	)
-	keyWords := strings.Split(keyWordStr["KeyWord"], ";")
-	return true, keyWords, nil
+	keyWords := strings.Split(keyWordStr["关键词"], ";")
+	return true, keyWords, info, nil
 }
 
 func (client *SearchChainClient) GetMethodOptions(context *SearchContext) (bool, lark.MethodOptionFunc, error) {
@@ -196,62 +189,73 @@ func (client *SearchChainClient) SearchFeishuDoc(context *SearchContext, keyword
 	return true, contentMap, linksMap, nil
 }
 
-func (client *SearchChainClient) CleanMarkDownToText(ctx *SearchContext, text string) string {
-	maxLength := 4000
+func splitByLength(str string, length int) []string {
+	var result []string
+	for len(str) > 0 {
+		if len(str) >= length {
+			result = append(result, str[:length])
+			str = str[length:]
+		} else {
+			result = append(result, str)
+			str = ""
+		}
+	}
+	return result
+}
+
+func (client *SearchChainClient) CleanMarkDownToText(ctx *SearchContext, text string) []string {
+	maxLength := 5000
 	output := text
 	output = strings.Replace(output, "#", "", -1)
 	output = strings.Replace(output, "<strong>", "", -1)
 	output = strings.Replace(output, "</strong>", "", -1)
 	re, _ := regexp.Compile(`\n\n+`)
 	output = re.ReplaceAllString(output, "\n")
-	if len(output) <= maxLength {
-		return output
-	} else {
-		return string(output)[:maxLength]
-	}
+	return splitByLength(output, maxLength)
 }
 
-// 翻译答案:TODO
-func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, error) {
+//可以把这个问题记录下来。向量化。并且提供商搜索回答
+
+// TODO: 这边应该一个简单的for循环来实现效果
+func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, string, error) {
 	defaultAnswerTmpl := `
 You are a professional problem solve export  
 Now you are required to answer a question based on the information provided below. Please try not to use related information to anwser user's question.
 If you need more information, you can provide relevant search keywords and best related question"
 Related Question Are Chinese
-And Answer Should include Document Origin Information
+And Answer Should include Document Origin Information,If No Clue About The Answer.Return "查询的文档没有相关信息,请换一个文档搜索关键词"
+Related Question Please Return Chinese
 
 Documents: "%s"
 Question:%s
 
 And Output with format:
-Answer: Answer Here
-RelatedQuestion: Related Question Here
+回答: Answer Here
 `
 	if utils.Exists(".prompt_answer.txt") {
 		defaultAnswerBytes, _ := os.ReadFile(".prompt_answer.txt")
 		defaultAnswerTmpl = string(defaultAnswerBytes)
 	}
 
-	Documents := ""
-	for title, document := range docs {
-		Documents = Documents + "\n" + title + ":" + document
-	}
-	Documents = client.CleanMarkDownToText(ctx, Documents)
-	answerMap, _ := client.AskChatGpt(ctx, 5000, []string{"Answer", "RelatedQuestion"}, defaultAnswerTmpl, Documents, query)
-	answer := answerMap["Answer"]
-	relatedQuestion := answerMap["RelatedQuestion"]
 	questionMap := make(map[string]string)
-	for index, question := range strings.Split(relatedQuestion, ",") {
-		questionMap[string(index)] = question
+	var info = ""
+	for _, document := range docs {
+		texts := client.CleanMarkDownToText(ctx, document)
+		for _, text := range texts {
+			_, info, _ := client.AskChatGpt(ctx, 4000, []string{"回答"}, defaultAnswerTmpl, text, query)
+			if !strings.Contains(info, "没有相关") {
+				return true, info, questionMap, info, nil
+			}
+		}
 	}
-	return true, answer, questionMap, nil
+	return true, info, questionMap, info, nil
 }
 
 func (client *SearchChainClient) AskWithDoc(ctx *SearchContext, getKeys []string, content string, args ...any) (map[string]string, error) {
 	return nil, nil
 }
 
-func (client *SearchChainClient) AskChatGpt(ctx *SearchContext, requestToken int64, getKeys []string, content string, args ...any) (map[string]string, error) {
+func (client *SearchChainClient) AskChatGpt(ctx *SearchContext, requestToken int64, getKeys []string, content string, args ...any) (map[string]string, string, error) {
 	prompt := fmt.Sprintf(content, args...)
 	//这边有可能是巨坑
 	conversation, err := client.gptClient.GetOrCreateConversation(ctx.conversationId+"_query", &chatgpt.ConversationConfig{
@@ -260,15 +264,15 @@ func (client *SearchChainClient) AskChatGpt(ctx *SearchContext, requestToken int
 		Language:          "zh",
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	answerBytes, err := conversation.Ask([]byte(prompt), &chatgpt.ConversationAskConfig{})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	answer := string(answerBytes)
 	answers := map[string]string{}
-	log.Println(fmt.Sprintf("chatgpt的提问为:%s结果为:%s", prompt, answer))
+	log.Println(fmt.Sprintf("chatgpt的提问为:%s \r 结果为:%s", prompt, answer))
 	for _, getKey := range getKeys {
 		rx := regexp.MustCompile(fmt.Sprintf(`%s:(.*)`, getKey))
 		// 在字符串中查找匹配项
@@ -277,8 +281,8 @@ func (client *SearchChainClient) AskChatGpt(ctx *SearchContext, requestToken int
 			result := match[1]
 			answers[getKey] = result
 		} else {
-			return answers, errors.New(fmt.Sprintf("chatgpt返回的格式不对:%s", answer))
+			return answers, answer, errors.New(fmt.Sprintf("chatgpt返回的格式不对:%s", answer))
 		}
 	}
-	return answers, nil
+	return answers, answer, nil
 }

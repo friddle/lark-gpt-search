@@ -62,6 +62,7 @@ func ReplyTextWithLinks(reply func(context string, msgType ...string) error, tex
 	}
 	contentBody := &mc.ContentTypePost{
 		ZhCN: &mc.ContentTypePostBody{
+			Title: "返回中",
 			Content: [][]mc.ContentTypePostBodyItem{
 				{
 					{
@@ -77,20 +78,20 @@ func ReplyTextWithLinks(reply func(context string, msgType ...string) error, tex
 		linkItems := make([]mc.ContentTypePostBodyItem, 0)
 		for title, link := range links {
 			linkItems = append(linkItems, mc.ContentTypePostBodyItem{
-				Tag:  "link",
-				Text: title,
+				Tag:  "a",
+				Text: "链接:" + title,
 				Href: link,
 			})
+			logger.Info(fmt.Sprintf("text %s link %s", title, link))
 		}
 		contentBody.ZhCN.Content = append(contentBody.ZhCN.Content, linkItems)
 	}
 	if len(questions) > 0 {
 		linkItems := make([]mc.ContentTypePostBodyItem, 0)
-		for title, link := range questions {
+		for title, _ := range questions {
 			linkItems = append(linkItems, mc.ContentTypePostBodyItem{
-				Tag:  "link",
+				Tag:  "text",
 				Text: title,
-				Href: link,
 			})
 		}
 		contentBody.ZhCN.Content = append(contentBody.ZhCN.Content, linkItems)
@@ -141,7 +142,7 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 		}
 		genAuth := lark.GenOAuthURLReq{RedirectURI: feishuClient.RedirectUrl, State: user.User.UserID}
 		genRsp := feishuClient.LarkClient.Auth.GenOAuthURL(feishuClient.Ctx, &genAuth)
-		response := fmt.Sprintf("请点击链接进行授权: %s", genRsp)
+		response := fmt.Sprintf("请点击链接进行授权: %s,授权完成后请重新输入", genRsp)
 		if err := ReplyText(reply, response); err != nil {
 			return fmt.Errorf("failed to reply: %v", err)
 		}
@@ -152,6 +153,13 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 		Handler: authHandler,
 	})
 
+	bot.OnCommand("token", &chatbot.Command{
+		Handler: func(args []string, request *event.EventRequest, reply chatbot.MessageReply) error {
+			feishuClient.SetAccessToken(request.Event.Sender.SenderID.UserID, args[0])
+			return nil
+		},
+	})
+
 	bot.OnMessage(func(text string, request *event.EventRequest, reply chatbot.MessageReply) error {
 		if strings.HasPrefix(text, "/") {
 			logger.Infof("ignore empty command message")
@@ -160,14 +168,16 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 		argsMap := map[string]string{}
 		args := strings.Split(text, " ")
 		for _, arg := range args {
-			if strings.Contains("--", arg) {
-				argItem := strings.Split(arg, "--")
+			if strings.Contains(arg, "--") {
+				argItem := strings.Split(strings.Replace(arg, "--", "", -1), "=")
 				if len(argItem) != 2 {
-					ReplyText(reply, fmt.Sprintf("参数错误 %s", arg))
+					ReplyText(reply, fmt.Sprintf("参数错误 %s,参数设置应该为 --searchKey=xxx", arg))
+					return nil
 				}
 				argsMap[argItem[0]] = argItem[1]
 			}
 		}
+		text = args[0]
 		context, _ := searchClient.GetContext(request.Event.Message.RootID, request.Event.Sender.SenderID.UserID, argsMap)
 		searchClient.Search(context, text, func(isAuth bool, content string, question map[string]string, links map[string]string, err error) {
 			if !isAuth {

@@ -47,9 +47,9 @@ func TestSearch(t *testing.T) {
 	feishuClient, searchClient, _ := GetInitClient()
 	conversationId := string(uuid.V4())
 	userId := "164981201"
-	token := "u-dENc2rfcd4hHfdl6xl1FFqgl1e0A1hbxo0w0h42E2871"
+	token := "u-cQqS7FGTt7dVjkTlu2jsdr1k3KQ41h13qo0055c022g_"
 	argsMap := map[string]string{
-		"searchKey": "Laipvt功能详细介绍文档",
+		"searchKey": "IDP服务进程说明",
 		"count":     "1",
 	}
 	question := "Laipvt的最新地址"

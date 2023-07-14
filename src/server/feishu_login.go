@@ -11,15 +11,14 @@ import (
 )
 
 func AuthPage(c *zoox.Context, url *url.URL, feishuApiClient *feishu.FeishuClient) {
-	err, token := feishuApiClient.SetAccessTokenByUrl(url.Path)
+	err, token := feishuApiClient.SetAccessTokenByUrl(url.Path + "?" + url.RawQuery)
+	fileStr, _ := html.HtmlFs.ReadFile("html/index.html")
 	if err != nil {
 		logger.Error("+v", err)
-		return
+		fileStr, _ = html.HtmlFs.ReadFile("html/error.html")
 	}
 	logger.Info(fmt.Sprintf("token:%v", token))
-	fileStr, _ := html.HtmlFs.ReadFile("html/index.html")
 	c.Set("Content-Type", "text/html; charset=utf-8")
-	c.Set("Content-Types", "text/html; charset=utf-8")
 	c.String(http.StatusOK, "%s", string(fileStr))
 	c.Write(fileStr)
 }

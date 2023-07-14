@@ -615,3 +615,10 @@ func (p *Parser) ParseDocxBlockQuoteContainer(blockId string, q *lark.DocxBlocQu
 	contents = strings.Join(strings.Fields(strings.ReplaceAll(strings.TrimSpace(strip.StripTags(contents)), "\n", "<br/>")), " ")
 	return contents
 }
+
+func (p *Parser) ParseSheetContent(content *lark.SheetContent) string {
+	for _, child := range *content.Children {
+		log.Printf("child %v", child)
+	}
+	return ""
+}

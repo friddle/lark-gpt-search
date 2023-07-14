@@ -25,10 +25,10 @@ func (c *FeishuClient) GetDocContent(docToken string, options ...lark.MethodOpti
 	return doc, nil
 }
 
-func (c *FeishuClient) GetSheetClient(sheetId string, docToken string, options ...lark.MethodOptionFunc) (*lark.SheetContent, error) {
+func (c *FeishuClient) GetSheetDoc(docToken string, options ...lark.MethodOptionFunc) (*lark.SheetContent, error) {
 	resp, _, err := c.LarkClient.Drive.GetSheet(c.Ctx, &lark.GetSheetReq{
-		SheetID:          sheetId,
 		SpreadSheetToken: docToken,
+		SheetID:          docToken,
 	}, options...)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (c *FeishuClient) DownloadImage(imgToken string, options ...lark.MethodOpti
 	if err != nil {
 		return imgToken, err
 	}
-	imgDir := c.ImgDir
+	imgDir := c.CacheDir + "/img"
 	fileext := filepath.Ext(resp.Filename)
 	filename := fmt.Sprintf("%s/%s%s", imgDir, imgToken, fileext)
 	err = os.MkdirAll(filepath.Dir(filename), 0o755)

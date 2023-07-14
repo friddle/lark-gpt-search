@@ -10,9 +10,12 @@ require (
 	github.com/go-zoox/chatgpt-client v1.5.3
 	github.com/go-zoox/feishu v1.3.11
 	github.com/go-zoox/logger v1.4.4
+	github.com/go-zoox/uuid v0.0.1
+	github.com/go-zoox/zoox v1.7.16
 	github.com/grokify/html-strip-tags-go v0.0.1
 	github.com/joho/godotenv v1.5.1
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/russross/blackfriday/v2 v2.1.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -47,8 +50,6 @@ require (
 	github.com/go-zoox/safe v1.0.1 // indirect
 	github.com/go-zoox/session v1.0.6 // indirect
 	github.com/go-zoox/tag v1.2.0 // indirect
-	github.com/go-zoox/uuid v0.0.1 // indirect
-	github.com/go-zoox/zoox v1.7.16 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect

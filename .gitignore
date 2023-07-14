@@ -5,3 +5,5 @@ dist/
 .chatgpt.env
 .machines.yaml
 laiye/
+src/gpt_search_test.go
+cache

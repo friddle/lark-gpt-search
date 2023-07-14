@@ -1,6 +1,9 @@
 # 此工具目标
 模拟NewBing的搜索操作,搜索飞书内网文档，并返回结果
 
+# 备注
+没有用langchian。是go的langchain库(golangchian)等同于残废。
+确实只有python的库比较好  
 
 # 工具流程
 0. 用户进行登录
@@ -11,7 +14,8 @@
 
 # 权限
 p2p:chat:bot
-
+待补充
+...
 
 # 配置
 参考相应的  

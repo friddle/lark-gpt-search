@@ -11,6 +11,7 @@ import (
 	chatgpt "github.com/go-zoox/chatgpt-client"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/uuid"
+	"os"
 	"testing"
 )
 
@@ -32,8 +33,11 @@ func TestAuthUrl(t *testing.T) {
 	ctx := context.Background()
 	feishuConf := config.ReadFeishuConfig()
 	feishuApiClient := feishu.NewFeishuClient(ctx, feishuConf)
-	url := "https://laiye.com/?code=6a9t5e3d68cb4ce0ad6bf92a6e6b3a17&state=164981201"
-	feishuApiClient.SetAccessTokenByUrl(url)
+	url := "https://laiye.com/?code=febo7c021fb4458ba3ddd30fa87a1c1e&state=164981201"
+	err, info := feishuApiClient.SetAccessTokenByUrl(url)
+	if err != nil {
+		panic("授权失败 " + info)
+	}
 	for userId, token := range feishuApiClient.UserTokens {
 		println(userId, *token)
 	}
@@ -43,14 +47,18 @@ func TestSearch(t *testing.T) {
 	feishuClient, searchClient, _ := GetInitClient()
 	conversationId := string(uuid.V4())
 	userId := "164981201"
-	token := "u-fHBUmRLwR6QGZscRZErkmV1l6BflkhbxNww0h4E001us"
-	argsMap := map[string]string{}
+	token := "u-dENc2rfcd4hHfdl6xl1FFqgl1e0A1hbxo0w0h42E2871"
+	argsMap := map[string]string{
+		"searchKey": "Laipvt功能详细介绍文档",
+		"count":     "1",
+	}
+	question := "Laipvt的最新地址"
 	context, err := searchClient.GetContext(conversationId, userId, argsMap)
 	if err != nil {
 		panic(fmt.Sprintf("+%v", err))
 	}
 	feishuClient.UserTokens[userId] = &token
-	searchClient.Search(context, "IDP3.5如何部署", func(isAuth bool, content string, moreQuestion map[string]string, links map[string]string, err error) {
+	searchClient.Search(context, question, func(isAuth bool, content string, moreQuestion map[string]string, links map[string]string, err error) {
 		if !isAuth {
 			panic("没有登录")
 		}
@@ -58,5 +66,73 @@ func TestSearch(t *testing.T) {
 		println(moreQuestion)
 		println(links)
 	})
+}
 
+func TestGptInvoke(t *testing.T) {
+	prompt := `
+     You are a professional problem solve export
+     Now you are required to answer a question based on the information provided below. 
+     Please try not to use related information to answer user's question.
+     Information:%s
+    `
+
+	docByte, _ := os.ReadFile("./src/sample.txt")
+	doc := string(docByte)
+	conf := config.ReadChatGptClient()
+	conf.AzureDeployment = "lyd-test-davinci"
+	gptClient, _ := chatgpt.New(conf)
+	message := []*chatgpt.Message{
+		&chatgpt.Message{
+			Text:      "Question:Laipvt怎么关闭?",
+			IsChatGPT: true,
+			Role:      "user",
+		},
+	}
+	config := chatgpt.AskConfig{
+		Messages:                 message,
+		Prompt:                   fmt.Sprintf(prompt, doc),
+		Model:                    "text-davinci-003",
+		MaxRequestResponseTokens: 7000,
+	}
+	rsp, err := gptClient.Ask(&config)
+	if err != nil {
+		panic(fmt.Sprintf("err %v", err))
+	}
+	logger.Info("rsp:" + string(rsp))
+}
+
+func TestGptConversationInvoke(t *testing.T) {
+	template := `
+You are a professional problem solve export  
+Now you are required to answer a question based on the information provided below. Please try not to use related information to anwser user's question.
+If you need more information, you can provide relevant search keywords and best related question"
+Related Question Are Chinese
+And Answer Should include Document Origin Information.Document will be split by "---"
+
+-----------------
+-----------------
+Documents: "%s"
+-----------------
+-----------------
+
+Question is %s
+Give The answer
+`
+
+	docByte, _ := os.ReadFile("./src/sample.txt")
+	doc := string(docByte)
+	conf := config.ReadChatGptClient()
+	//conf.AzureDeployment = "lyd-test-davinci"
+	gptClient, _ := chatgpt.New(conf)
+	question := "最新的Laipvt地址是什么?"
+	ask := fmt.Sprintf(template, doc, question)
+
+	conversation, _ := gptClient.GetOrCreateConversation(uuid.V4(), &chatgpt.ConversationConfig{
+		MaxRequestTokens:  60000,
+		MaxResponseTokens: 10000,
+		Language:          "zh",
+	})
+	answerBytes, _ := conversation.Ask([]byte(ask), &chatgpt.ConversationAskConfig{})
+	answer := string(answerBytes)
+	logger.Info("answer:" + answer)
 }

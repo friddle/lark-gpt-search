@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,6 +40,7 @@ type SearchContext struct {
 	wikiIds        []string
 	background     string
 	count          int64
+	offset         int64
 }
 
 // TODO
@@ -52,7 +54,8 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 			searchKey:      []string{},
 			background:     "no info",
 			docTypes:       []string{},
-			count:          int64(3),
+			count:          int64(1),
+			offset:         int64(1),
 		}
 	}
 	wikiIds, ok := args["wikiIds"]
@@ -73,6 +76,12 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 		docTypeList := strings.Split(docTypes, ",")
 		context.docTypes = append([]string{}, docTypeList...)
 	}
+	count, ok := args["count"]
+	if ok {
+		countint, _ := strconv.Atoi(count)
+		context.count = int64(countint)
+	}
+
 	return context, nil
 }
 
@@ -109,7 +118,7 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 	}
 	_, answer, moreQuestion, err := client.TranslateAnswer(context, question, documentContent)
 	if err != nil {
-		reply(true, "理解答案失败", nil, nil, err)
+		reply(true, "理解答案失败(请不要使用太长的文档)"+answer, nil, nil, err)
 		return
 	}
 	reply(true, "结果为:"+answer, moreQuestion, links, nil)
@@ -121,7 +130,7 @@ func (client *SearchChainClient) TranslateQuestionToKeyWord(context *SearchConte
 	defaultQuestionTmpl := `
        You are a professional search engine optimization (SEO) expert. 
        Your task is to extract relevant search terms based on the following background Infromation and Wiki and user Question
-       And Return Search KeyWord,if mutiple keyword,split by ';'
+       And Return Search KeyWord,if multiple keyword,split by ';'
        Background Information: %s
        Wiki: %s
        PreviewInfo: %s
@@ -187,40 +196,48 @@ func (client *SearchChainClient) SearchFeishuDoc(context *SearchContext, keyword
 	return true, contentMap, linksMap, nil
 }
 
+func (client *SearchChainClient) CleanMarkDownToText(ctx *SearchContext, text string) string {
+	maxLength := 4000
+	output := text
+	output = strings.Replace(output, "#", "", -1)
+	output = strings.Replace(output, "<strong>", "", -1)
+	output = strings.Replace(output, "</strong>", "", -1)
+	re, _ := regexp.Compile(`\n\n+`)
+	output = re.ReplaceAllString(output, "\n")
+	if len(output) <= maxLength {
+		return output
+	} else {
+		return string(output)[:maxLength]
+	}
+}
+
 // 翻译答案:TODO
 func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, error) {
 	defaultAnswerTmpl := `
-       Job is Base blown Information to answer user information
-       you are required to answer a question based on the information provided below. Please try not to use related information to anwser user's question. 
-       If you need more information, you can provide relevant search keywords and best related question"
-       Related Question Are Chinese
-       And Answer Should include Document Origin Information
+You are a professional problem solve export  
+Now you are required to answer a question based on the information provided below. Please try not to use related information to anwser user's question.
+If you need more information, you can provide relevant search keywords and best related question"
+Related Question Are Chinese
+And Answer Should include Document Origin Information
 
-       Wiki: %s
-       PreviewInfo: %s
-       Background Information: %s
-       MarkDocuments: "%s"
-       Question:%s
+Documents: "%s"
+Question:%s
 
-       And Output with format:
-       Answer: Answer Here
-       RelatedQuestion: Related Question Here
-    `
+And Output with format:
+Answer: Answer Here
+RelatedQuestion: Related Question Here
+`
 	if utils.Exists(".prompt_answer.txt") {
 		defaultAnswerBytes, _ := os.ReadFile(".prompt_answer.txt")
 		defaultAnswerTmpl = string(defaultAnswerBytes)
 	}
 
-	history := strings.Join(ctx.askHistory, "\r")
-	wiki, err := client.GetBaike(ctx)
-	if err != nil {
-		return true, "", nil, err
-	}
 	Documents := ""
 	for title, document := range docs {
-		Documents = Documents + "\n\n" + title + ":" + document + "\n"
+		Documents = Documents + "\n" + title + ":" + document
 	}
-	answerMap, _ := client.AskChatGpt(ctx, 5000, []string{"Answer", "RelatedQuestion"}, defaultAnswerTmpl, wiki, history, ctx.background, Documents, query)
+	Documents = client.CleanMarkDownToText(ctx, Documents)
+	answerMap, _ := client.AskChatGpt(ctx, 5000, []string{"Answer", "RelatedQuestion"}, defaultAnswerTmpl, Documents, query)
 	answer := answerMap["Answer"]
 	relatedQuestion := answerMap["RelatedQuestion"]
 	questionMap := make(map[string]string)
@@ -228,6 +245,10 @@ func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query strin
 		questionMap[string(index)] = question
 	}
 	return true, answer, questionMap, nil
+}
+
+func (client *SearchChainClient) AskWithDoc(ctx *SearchContext, getKeys []string, content string, args ...any) (map[string]string, error) {
+	return nil, nil
 }
 
 func (client *SearchChainClient) AskChatGpt(ctx *SearchContext, requestToken int64, getKeys []string, content string, args ...any) (map[string]string, error) {

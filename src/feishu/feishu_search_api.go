@@ -7,6 +7,7 @@ import (
 	"github.com/chyroc/lark"
 	"log"
 	"os"
+	"strings"
 )
 
 //memory的问题
@@ -38,6 +39,27 @@ type SearchWikiFileResp struct {
 	PageToken string                           `json:"page_token,omitempty"` // 搜索匹配文档总数量
 }
 
+type SearchOptions struct {
+	DocTypes []string
+	Exclude  []string
+	Wiki     bool
+	Self     bool
+	Count    int64
+	Offset   int64
+}
+
+type FeishuDocMeta struct {
+	DocsToken string `json:"docs_token,omitempty"` // 文档token
+	DocsType  string `json:"docs_type,omitempty"`  // 文档类型
+	Title     string `json:"title,omitempty"`      // 标题
+	OwnerID   string `json:"owner_id,omitempty"`   // 文件所有者
+	NodeID    string `json:"node_id"`
+	SpaceID   string `json:"space_id"`
+	URL       string `json:"url"`
+	SheetId   string `json:"sheet_id"`
+	isWiki    bool
+}
+
 func newMethodOption(options []lark.MethodOptionFunc) *lark.MethodOption {
 	opt := new(lark.MethodOption)
 	for _, v := range options {
@@ -46,7 +68,7 @@ func newMethodOption(options []lark.MethodOptionFunc) *lark.MethodOption {
 	return opt
 }
 
-func (client *FeishuClient) SearchDocs(query string, count int64, ownerId []string, docTypes []string, options ...lark.MethodOptionFunc) ([]*SearchWikiFileRespItemsEntity, error) {
+func (client *FeishuClient) SearchWikiDocs(query string, userId string, option SearchOptions, options ...lark.MethodOptionFunc) ([]*FeishuDocMeta, error) {
 	request := &SearchWikiFileReq{
 		Query: query,
 	}
@@ -65,7 +87,70 @@ func (client *FeishuClient) SearchDocs(query string, count int64, ownerId []stri
 	if err != nil {
 		return nil, err
 	}
-	return entityRsp.Data.Items, nil
+	entitys := []*FeishuDocMeta{}
+	for _, item := range entityRsp.Data.Items {
+		node, err := client.GetWikiNodeInfo(item.NodeID, options...)
+		if err != nil {
+			continue
+		}
+		if option.Self {
+			if node.Owner != userId {
+				continue
+			}
+		}
+		if len(option.DocTypes) > 0 {
+		}
+
+		if len(option.Exclude) > 0 {
+			for _, entity := range entitys {
+				for _, execlude := range option.Exclude {
+					if strings.Contains(entity.Title, execlude) {
+						continue
+					}
+				}
+			}
+
+		}
+		entitys = append(entitys, &FeishuDocMeta{})
+	}
+	return entitys, nil
+}
+
+func (client *FeishuClient) SearchDriveDocs(query string, userId string, option SearchOptions, options ...lark.MethodOptionFunc) ([]*FeishuDocMeta, error) {
+	req := &lark.SearchDriveFileReq{
+		SearchKey: query,
+		Count:     &option.Count,
+		Offset:    &option.Offset,
+		DocsTypes: option.DocTypes,
+	}
+	if option.Self {
+		req.OwnerIDs = append([]string{}, userId)
+	}
+	rsp, _, err := client.LarkClient.Drive.SearchDriveFile(client.Ctx, req, options...)
+	if err != nil {
+		return nil, err
+	}
+	entitys := []*FeishuDocMeta{}
+	for _, entity := range rsp.DocsEntities {
+		// 删除所有包含关键字的文档
+		if len(option.Exclude) > 0 {
+			for _, entity := range entitys {
+				for _, execlude := range option.Exclude {
+					if strings.Contains(entity.Title, execlude) {
+						continue
+					}
+				}
+			}
+		}
+		entitys = append(entitys, &FeishuDocMeta{
+			DocsToken: entity.DocsToken,
+			DocsType:  entity.DocsType,
+			Title:     entity.Title,
+			OwnerID:   entity.OwnerID,
+		})
+	}
+
+	return entitys, nil
 }
 
 func (client *FeishuClient) GetFileContent(token string, docType string, title string, options ...lark.MethodOptionFunc) (string, error) {
@@ -89,7 +174,6 @@ func (client *FeishuClient) GetFileContent(token string, docType string, title s
 
 // 以后加缓存功能
 func (client *FeishuClient) GetFileContentByApi(token string, docType string, title string, options ...lark.MethodOptionFunc) (string, error) {
-
 	parser := NewParser(client.Ctx)
 	if docType == "docx" {
 		documents, block, _ := client.GetDocxContent(token, options...)
@@ -100,35 +184,36 @@ func (client *FeishuClient) GetFileContentByApi(token string, docType string, ti
 		return parser.ParseDocContent(documents), nil
 	}
 	if docType == "sheet" {
-		//sheetContent, _ := client.GetSheetDoc(token, options...)
-		//parser.ParseSheetContent(sheetContent)
+		sheetContent, _ := client.GetSheetDoc(token, options...)
+		parser.ParseSheetContent(sheetContent)
 	}
 
 	return "", errors.New(fmt.Sprintf("没有支持的格式,或者格式不正确 %s", token))
 
 }
 
-func (client *FeishuClient) SearchDocsWithResult(query string, count int64, ownerId []string, docTypes []string, options ...lark.MethodOptionFunc) (map[string]string, map[string]string, error) {
+func (client *FeishuClient) SearchDocsWithResult(query string, userId string, option SearchOptions, options ...lark.MethodOptionFunc) (map[string]string, map[string]string, error) {
 	log.Printf(fmt.Sprintf("search doc query:%s", query))
-	entityRsp, err := client.SearchDocs(query, count, ownerId, docTypes, options...)
+	var entityRsp []*FeishuDocMeta
+	var err error
+	if option.Wiki {
+		entityRsp, err = client.SearchWikiDocs(query, userId, option, options...)
+	} else {
+		entityRsp, err = client.SearchDriveDocs(query, userId, option, options...)
+	}
 	linkMap := make(map[string]string)
 	if err != nil {
 		return nil, nil, err
 	}
 	contents := make(map[string]string, 0)
-	for index, entity := range entityRsp {
-		if index <= int(count) {
-			node, err := client.GetWikiNodeInfo(entity.NodeID, options...)
-			if node.ObjType == "sheet" {
-				continue
-			}
-			rsp, err := client.GetFileContent(node.ObjToken, node.ObjType, node.Title, options...)
-			linkMap[entity.Title] = entity.URL
-			if err != nil {
-				log.Printf(fmt.Sprintf("get doc type rsp:%v", rsp))
-			}
-			contents[entity.Title] = rsp
+	for _, entity := range entityRsp {
+		rsp, err := client.GetFileContent(entity.DocsToken, entity.DocsType, entity.Title, options...)
+		linkMap[entity.Title] = entity.URL
+		if err != nil {
+			log.Printf(fmt.Sprintf("get doc type rsp:%v", rsp))
+			continue
 		}
+		contents[entity.Title] = rsp
 	}
 	return contents, linkMap, nil
 }

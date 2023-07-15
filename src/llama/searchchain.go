@@ -32,15 +32,12 @@ func NewSearchClient(gptClient chatgpt.Client, feishuClient *feishu.FeishuClient
 type SearchContext struct {
 	//
 	askHistory     []string
-	ownerId        []string
-	docTypes       []string
-	userId         string
 	searchKey      []string
 	conversationId string
-	wikiIds        []string
+	baikeIds       []string
 	background     string
-	count          int64
-	offset         int64
+	options        feishu.SearchOptions
+	userId         string
 }
 
 // TODO
@@ -49,19 +46,11 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 	if !isOk {
 		context = &SearchContext{
 			conversationId: conversationId,
-			userId:         userId,
-			wikiIds:        []string{},
+			baikeIds:       []string{},
 			searchKey:      []string{},
 			background:     "no info",
-			docTypes:       []string{},
-			count:          int64(1),
-			offset:         int64(1),
+			userId:         "",
 		}
-	}
-	wikiIds, ok := args["wikiIds"]
-	if ok {
-		wikiIdList := strings.Split(wikiIds, ",")
-		context.wikiIds = wikiIdList
 	}
 	background, ok := args["background"]
 	if ok {
@@ -71,15 +60,45 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 	if ok {
 		context.searchKey = append([]string{}, searchKey)
 	}
+
+	//update SearchOptions
+	searchOption := &feishu.SearchOptions{
+		DocTypes: []string{},
+		Count:    int64(1),
+		Offset:   int64(0),
+		Wiki:     true,
+		Exclude:  []string{},
+		Self:     false,
+	}
+	context.options = *searchOption
+
 	docTypes, ok := args["docTypes"]
 	if docTypes != "" {
 		docTypeList := strings.Split(docTypes, ",")
-		context.docTypes = append([]string{}, docTypeList...)
+		context.options.DocTypes = append([]string{}, docTypeList...)
+	}
+	exclude, ok := args["exclude"]
+	if exclude != "" {
+		excludeTypeList := strings.Split(exclude, ",")
+		context.options.Exclude = append([]string{}, excludeTypeList...)
 	}
 	count, ok := args["count"]
 	if ok {
 		countint, _ := strconv.Atoi(count)
-		context.count = int64(countint)
+		context.options.Count = int64(countint)
+	}
+	offset, ok := args["offset"]
+	if ok {
+		offsetnum, _ := strconv.Atoi(offset)
+		context.options.Offset = int64(offsetnum)
+	}
+	isSelf, ok := args["isSelf"]
+	if ok {
+		context.options.Self, _ = strconv.ParseBool(isSelf)
+	}
+	isWiki, ok := args["isWiki"]
+	if ok {
+		context.options.Wiki, _ = strconv.ParseBool(isWiki)
 	}
 
 	return context, nil
@@ -99,6 +118,7 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 	if len(context.searchKey) != 0 {
 		searchKey = context.searchKey
 	} else {
+		log.Printf(fmt.Sprintf("question:%s", question))
 		_, keyWords, info, error := client.TranslateQuestionToKeyWord(context, question)
 		if error != nil {
 			reply(true, "翻译关键词失败:chatgpt 返回"+info, nil, nil, error)
@@ -162,10 +182,10 @@ func (client *SearchChainClient) GetMethodOptions(context *SearchContext) (bool,
 }
 
 func (client *SearchChainClient) GetBaike(context *SearchContext) (string, error) {
-	if len(context.wikiIds) == 0 {
+	if len(context.baikeIds) == 0 {
 		return "no wiki information", nil
 	}
-	bkRsp, err := client.feishuClient.GetBaike(context.wikiIds)
+	bkRsp, err := client.feishuClient.GetBaike(context.baikeIds)
 	if err != nil {
 
 	}
@@ -182,7 +202,7 @@ func (client *SearchChainClient) SearchFeishuDoc(context *SearchContext, keyword
 	if err != nil {
 		return true, nil, nil, err
 	}
-	contentMap, linksMap, err := client.feishuClient.SearchDocsWithResult(strings.Join(keywords, " "), context.count, context.ownerId, context.docTypes, option)
+	contentMap, linksMap, err := client.feishuClient.SearchDocsWithResult(strings.Join(keywords, " "), context.userId, context.options, option)
 	if err != nil {
 		return true, nil, nil, err
 	}

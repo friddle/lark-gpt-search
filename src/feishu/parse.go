@@ -616,9 +616,7 @@ func (p *Parser) ParseDocxBlockQuoteContainer(blockId string, q *lark.DocxBlocQu
 	return contents
 }
 
-func (p *Parser) ParseSheetContent(content *lark.SheetContent) string {
-	for _, child := range *content.Children {
-		log.Printf("child %v", child)
-	}
+func (p *Parser) ParseSheetContent(content []*lark.GetSheetRespSheet) string {
+
 	return ""
 }

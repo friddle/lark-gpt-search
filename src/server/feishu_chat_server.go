@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"github.com/chyroc/lark"
 	"github.com/go-zoox/chatbot-feishu"
+	regexp2 "github.com/go-zoox/core-utils/regexp"
 	"github.com/go-zoox/feishu/contact/user"
 	"github.com/go-zoox/feishu/event"
 	feishuEvent "github.com/go-zoox/feishu/event"
 	mc "github.com/go-zoox/feishu/message/content"
 	"github.com/go-zoox/logger"
+	"regexp"
 	"strings"
 )
 
@@ -24,6 +26,27 @@ func getUser(request *feishuEvent.EventRequest) (*user.RetrieveResponse, error) 
 			UserID:  sender.SenderID.UserID,
 		},
 	}, nil
+}
+
+func getText(client *feishu.FeishuClient, text string, request *feishuEvent.EventRequest) string {
+	var newText string
+	// group chat
+	if request.IsGroupChat() {
+		botRsp, _, _ := client.LarkClient.Bot.GetBotInfo(client.Ctx, &lark.GetBotInfoReq{})
+		if ok := regexp2.Match("^@_user_1", text); ok {
+			for _, mention := range request.Event.Message.Mentions {
+				if mention.Key == "@_user_1" && mention.ID.OpenID == botRsp.OpenID {
+					newText = strings.Replace(text, "@_user_1", "", 1)
+					logger.Info("chat command %s", text)
+					break
+				}
+			}
+		}
+	} else if request.IsP2pChat() {
+		newText = text
+	}
+	logger.Info("return chat  %s", newText)
+	return newText
 }
 
 func ReplyText(reply func(context string, msgType ...string) error, text string) error {
@@ -161,12 +184,13 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 	})
 
 	bot.OnMessage(func(text string, request *event.EventRequest, reply chatbot.MessageReply) error {
-		if strings.HasPrefix(text, "/") {
+		question := getText(feishuClient, text, request)
+		if strings.HasPrefix(question, "/") {
 			logger.Infof("ignore empty command message")
 			return nil
 		}
 		argsMap := map[string]string{}
-		args := strings.Split(text, " ")
+		args := strings.Split(question, " ")
 		for _, arg := range args {
 			if strings.Contains(arg, "--") {
 				argItem := strings.Split(strings.Replace(arg, "--", "", -1), "=")
@@ -177,9 +201,10 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 				argsMap[argItem[0]] = argItem[1]
 			}
 		}
-		text = args[0]
+		re := regexp.MustCompile(`--\w+=\w+`)
+		questionPure := re.ReplaceAllString(question, "")
 		context, _ := searchClient.GetContext(request.Event.Message.RootID, request.Event.Sender.SenderID.UserID, argsMap)
-		searchClient.Search(context, text, func(isAuth bool, content string, question map[string]string, links map[string]string, err error) {
+		searchClient.Search(context, questionPure, func(isAuth bool, content string, question map[string]string, links map[string]string, err error) {
 			if !isAuth {
 				authHandler([]string{}, request, reply)
 			}

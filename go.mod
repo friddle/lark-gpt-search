@@ -8,6 +8,7 @@ require (
 	github.com/elliotchance/orderedmap v1.5.0
 	github.com/go-zoox/chatbot-feishu v1.2.10
 	github.com/go-zoox/chatgpt-client v1.5.3
+	github.com/go-zoox/core-utils v1.2.10
 	github.com/go-zoox/feishu v1.3.11
 	github.com/go-zoox/logger v1.4.4
 	github.com/go-zoox/uuid v0.0.1
@@ -26,7 +27,6 @@ require (
 	github.com/go-zoox/chalk v1.0.2 // indirect
 	github.com/go-zoox/compress v1.0.1 // indirect
 	github.com/go-zoox/cookie v1.0.2 // indirect
-	github.com/go-zoox/core-utils v1.2.10 // indirect
 	github.com/go-zoox/counter v1.2.0 // indirect
 	github.com/go-zoox/cron v1.1.2 // indirect
 	github.com/go-zoox/crypto v1.1.8 // indirect

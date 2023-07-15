@@ -58,7 +58,7 @@ func Test_SendMessage(t *testing.T) {
 func Test_SheetParser(t *testing.T) {
 	feishuClient, _, _ := GetInitClient()
 	userId := "164981201"
-	token := "u-cQqS7FGTt7dVjkTlu2jsdr1k3KQ41h13qo0055c022g_"
+	token := "u-fkjZxjMOZ3gG6OOEnXKzfShggHKN1h31Ma00ggIw03FR"
 	feishuClient.SetAccessToken(userId, token)
 	option, _ := feishuClient.GenAuthToken(userId)
 	text, _ := feishuClient.GetFileContentByApi("shtcngoRXRRplvSVuMeVli8hGRc", "sheet", "IDP服务进程说明", option)

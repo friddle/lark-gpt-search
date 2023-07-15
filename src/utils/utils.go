@@ -46,3 +46,19 @@ func ReadYamlFromFile(configFile string, obj interface{}) error {
 	// print parsed configuration
 	return nil
 }
+
+func FilterStrings(origin []string, dest []string) []string {
+	result := make([]string, 0)
+	isContain := false
+	for _, ostr := range origin {
+		for _, dstr := range dest {
+			if ostr == dstr {
+				isContain = true
+			}
+		}
+		if !isContain {
+			result = append(result, ostr)
+		}
+	}
+	return result
+}

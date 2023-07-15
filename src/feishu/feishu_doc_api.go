@@ -25,17 +25,23 @@ func (c *FeishuClient) GetDocContent(docToken string, options ...lark.MethodOpti
 	return doc, nil
 }
 
-func (c *FeishuClient) GetSheetDoc(docToken string, options ...lark.MethodOptionFunc) (*lark.SheetContent, error) {
-	resp, _, err := c.LarkClient.Drive.GetSheet(c.Ctx, &lark.GetSheetReq{
+func (c *FeishuClient) GetSheetDoc(docToken string, options ...lark.MethodOptionFunc) ([]*lark.GetSheetRespSheet, error) {
+	metaRsp, _, _ := c.LarkClient.Drive.GetSheetMeta(c.Ctx, &lark.GetSheetMetaReq{
 		SpreadSheetToken: docToken,
-		SheetID:          docToken,
-	}, options...)
-	if err != nil {
-		return nil, err
+	})
+	sheetContents := []*lark.GetSheetRespSheet{}
+	for _, sheet := range metaRsp.Sheets {
+		resp, _, err := c.LarkClient.Drive.GetSheet(c.Ctx, &lark.GetSheetReq{
+			SpreadSheetToken: docToken,
+			SheetID:          sheet.SheetID,
+		}, options...)
+		if err != nil {
+			continue
+		}
+		sheetContents = append(sheetContents, resp.Sheet)
 	}
-	return &lark.SheetContent{
-		String: &resp.Sheet.SheetID,
-	}, nil
+
+	return sheetContents, nil
 
 }
 

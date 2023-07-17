@@ -47,12 +47,9 @@ func TestSearch(t *testing.T) {
 	feishuClient, searchClient, _ := GetInitClient()
 	conversationId := string(uuid.V4())
 	userId := "164981201"
-	token := "u-cQqS7FGTt7dVjkTlu2jsdr1k3KQ41h13qo0055c022g_"
-	argsMap := map[string]string{
-		"searchKey": "IDP服务进程说明",
-		"count":     "1",
-	}
-	question := "Laipvt的最新地址"
+	token := "u-dSyhiQWxx018UznesaT9kH50jZkh1hz1OG00lls022pd"
+	argsMap := map[string]string{}
+	question := "2022Q4的RPA的产品规划"
 	context, err := searchClient.GetContext(conversationId, userId, argsMap)
 	if err != nil {
 		panic(fmt.Sprintf("+%v", err))
@@ -63,8 +60,6 @@ func TestSearch(t *testing.T) {
 			panic("没有登录")
 		}
 		println(content)
-		println(moreQuestion)
-		println(links)
 	})
 }
 

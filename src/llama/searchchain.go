@@ -49,7 +49,7 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 			baikeIds:       []string{},
 			searchKey:      []string{},
 			background:     "no info",
-			userId:         "",
+			userId:         userId,
 		}
 	}
 	background, ok := args["background"]
@@ -63,8 +63,8 @@ func (client *SearchChainClient) GetContext(conversationId string, userId string
 
 	//update SearchOptions
 	searchOption := &feishu.SearchOptions{
-		DocTypes: []string{},
-		Count:    int64(1),
+		DocTypes: []string{"doc", "docx"},
+		Count:    int64(3),
 		Offset:   int64(0),
 		Wiki:     true,
 		Exclude:  []string{},
@@ -129,20 +129,32 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 	reply(true, fmt.Sprintf("搜索关键词:%s", strings.Join(searchKey, " ")), nil, nil, nil)
 	_, documentContent, links, err := client.SearchFeishuDoc(context, searchKey)
 	if err != nil {
-		reply(true, "搜索文档失败", nil, nil, err)
+		reply(true, fmt.Sprintf("搜索文档失败:%v", err), nil, nil, err)
 		return
 	}
 	if len(documentContent) == 0 {
 		reply(true, "没有搜索到相应的文档。请切换搜索词汇或者设置 --searchKey=", nil, nil, err)
 		return
 	}
+	var titles []string
+	for title, _ := range documentContent {
+		titles = append(titles, title)
+	}
+	reply(true, fmt.Sprintf("搜索%d个文档,默认为%s:\r", len(documentContent), strings.Join(titles, "\r\n")), nil, nil, nil)
+
 	_, answer, moreQuestion, info, err := client.TranslateAnswer(context, question, documentContent)
 	if err != nil {
 		reply(true, "理解答案失败(请不要使用太长的文档),ChatGPT返回:"+info, nil, nil, err)
 		return
 	}
 	reply(true, "结果为:"+answer, moreQuestion, links, nil)
+	logQuestionToFile(question, answer)
 	context.askHistory = append(context.askHistory, question)
+}
+
+func logQuestionToFile(question string, answer string) {
+	log.Printf("question:" + question + "answer:" + answer)
+
 }
 
 // 是否继续搜索,并且把问题转换为关键词

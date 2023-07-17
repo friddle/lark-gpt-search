@@ -88,6 +88,7 @@ func (client *FeishuClient) SearchWikiDocs(query string, userId string, option S
 		return nil, err
 	}
 	entitys := []*FeishuDocMeta{}
+	index := 0
 	for _, item := range entityRsp.Data.Items {
 		node, err := client.GetWikiNodeInfo(item.NodeID, options...)
 		if err != nil {
@@ -99,19 +100,34 @@ func (client *FeishuClient) SearchWikiDocs(query string, userId string, option S
 			}
 		}
 		if len(option.DocTypes) > 0 {
+			for _, docType := range option.DocTypes {
+				if docType != node.ObjType {
+					continue
+				}
+			}
 		}
 
 		if len(option.Exclude) > 0 {
-			for _, entity := range entitys {
-				for _, execlude := range option.Exclude {
-					if strings.Contains(entity.Title, execlude) {
-						continue
-					}
+			for _, execlude := range option.Exclude {
+				if strings.Contains(item.Title, execlude) {
+					continue
 				}
 			}
-
 		}
-		entitys = append(entitys, &FeishuDocMeta{})
+		entitys = append(entitys, &FeishuDocMeta{
+			Title:     item.Title,
+			NodeID:    item.NodeID,
+			SpaceID:   item.SpaceID,
+			DocsType:  node.ObjType,
+			DocsToken: node.ObjToken,
+			OwnerID:   node.Owner,
+			URL:       item.URL,
+			isWiki:    true,
+		})
+		index = index + 1
+		if int64(index) >= option.Count {
+			break
+		}
 	}
 	return entitys, nil
 }
@@ -147,6 +163,7 @@ func (client *FeishuClient) SearchDriveDocs(query string, userId string, option 
 			DocsType:  entity.DocsType,
 			Title:     entity.Title,
 			OwnerID:   entity.OwnerID,
+			isWiki:    false,
 		})
 	}
 
@@ -187,7 +204,6 @@ func (client *FeishuClient) GetFileContentByApi(token string, docType string, ti
 		sheetContent, _ := client.GetSheetDoc(token, options...)
 		parser.ParseSheetContent(sheetContent)
 	}
-
 	return "", errors.New(fmt.Sprintf("没有支持的格式,或者格式不正确 %s", token))
 
 }
@@ -208,11 +224,11 @@ func (client *FeishuClient) SearchDocsWithResult(query string, userId string, op
 	contents := make(map[string]string, 0)
 	for _, entity := range entityRsp {
 		rsp, err := client.GetFileContent(entity.DocsToken, entity.DocsType, entity.Title, options...)
-		linkMap[entity.Title] = entity.URL
 		if err != nil {
-			log.Printf(fmt.Sprintf("get doc type rsp:%v", rsp))
+			log.Printf(fmt.Sprintf("get doc type rsp:%v with error %v", rsp, err))
 			continue
 		}
+		linkMap[entity.Title] = entity.URL
 		contents[entity.Title] = rsp
 	}
 	return contents, linkMap, nil

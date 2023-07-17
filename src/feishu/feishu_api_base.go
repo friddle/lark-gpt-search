@@ -51,11 +51,13 @@ func (c FeishuClient) GenAuthToken(userId string) (lark.MethodOptionFunc, error)
 func (c FeishuClient) IsAuthWork(userId string) bool {
 	option, err := c.GenAuthToken(userId)
 	if err != nil {
+		log.Printf(fmt.Sprintf("auth error %v", err))
 		return false
 	}
 	_, _, err = c.LarkClient.Auth.GetUserInfo(c.Ctx, &lark.GetUserInfoReq{}, option)
 	//TODO: check is user work
 	if err != nil {
+		log.Printf(fmt.Sprintf("auth error %v", err))
 		return false
 	}
 	return true

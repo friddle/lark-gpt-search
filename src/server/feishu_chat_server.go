@@ -45,7 +45,7 @@ func getText(client *feishu.FeishuClient, text string, request *feishuEvent.Even
 	} else if request.IsP2pChat() {
 		newText = text
 	}
-	logger.Info("return chat  %s", newText)
+	logger.Info("question get  %s", newText)
 	return newText
 }
 
@@ -102,8 +102,8 @@ func ReplyTextWithLinks(reply func(context string, msgType ...string) error, tex
 		for title, link := range links {
 			linkItems = append(linkItems, mc.ContentTypePostBodyItem{
 				Tag:  "a",
-				Text: "链接:" + title,
-				Href: link,
+				Text: "参考:" + title + "\r\n",
+				Href: "" + string(link),
 			})
 			logger.Info(fmt.Sprintf("text %s link %s", title, link))
 		}
@@ -178,17 +178,23 @@ func FeishuServer(feishuConf *chatbot.Config, searchClient *llama.SearchChainCli
 
 	bot.OnCommand("token", &chatbot.Command{
 		Handler: func(args []string, request *event.EventRequest, reply chatbot.MessageReply) error {
+			logger.Info("set auth token %s %s", request.Event.Sender.SenderID.UserID, args[0])
 			feishuClient.SetAccessToken(request.Event.Sender.SenderID.UserID, args[0])
+			ReplyText(reply, "set auth token ok")
 			return nil
 		},
 	})
 
 	bot.OnMessage(func(text string, request *event.EventRequest, reply chatbot.MessageReply) error {
 		question := getText(feishuClient, text, request)
+		if question == "" {
+			return nil
+		}
 		if strings.HasPrefix(question, "/") {
 			logger.Infof("ignore empty command message")
 			return nil
 		}
+
 		argsMap := map[string]string{}
 		args := strings.Split(question, " ")
 		for _, arg := range args {

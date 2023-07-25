@@ -73,7 +73,7 @@ func TestSelfSearch(t *testing.T) {
 	conversationId := string(uuid.V4())
 	argsMap := map[string]string{}
 	argsMap["isSelf"] = "true"
-	question := "Laipvt增么安装监控"
+	question := "CICD如何使用"
 	userId, token := GetUserAndToken()
 	context, err := searchClient.GetContext(conversationId, userId, argsMap)
 	if err != nil {

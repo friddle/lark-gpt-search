@@ -154,13 +154,15 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 	}
 	reply(true, fmt.Sprintf("搜索%d个文档,默认为%s:\r", len(documentContent), strings.Join(titles, "\r\n")), nil, nil, nil)
 
-	_, answer, moreQuestion, info, err := client.TranslateAnswer(context, question, documentContent)
+	_, answer, moreQuestion, infos, err := client.TranslateAnswer(context, question, documentContent)
 	if err != nil {
 		reply(true, "导出结果失败:"+answer, moreQuestion, links, nil)
 		return
 	}
-	if info != "" {
-		reply(true, info, nil, nil, nil)
+	if len(infos) != 0 {
+		for _, info := range infos {
+			reply(true, info, nil, nil, nil)
+		}
 	}
 	reply(true, "结果为:"+answer, moreQuestion, links, nil)
 	logQuestionToFile(question, answer)
@@ -265,13 +267,13 @@ func (client *SearchChainClient) SplitMarkDownText(ctx *SearchContext, text stri
 		return onePage, err
 	}
 	if len(onePage) > maxPage {
-		return onePage[:maxPage], errors.New("文档过长,直接过滤文档到前几页")
+		return onePage[:maxPage], errors.New(fmt.Sprintf("文档过长,直接过滤文档到前%d页", maxPage))
 	}
 	return onePage, nil
 }
 
 // 可以把这个问题记录下来。向量化。并且提供商搜索回答
-func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, string, error) {
+func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, []string, error) {
 	defaultAnswerTmpl := `
 You are a professional problem solve export  
 Now you are required to answer a question based on the information provided below. Please try not to use related information to anwser user's question.
@@ -292,20 +294,20 @@ And Output with format:
 	}
 
 	questionMap := make(map[string]string)
-	var info = ""
+	var infos []string
 	for title, document := range docs {
 		texts, err := client.SplitMarkDownText(ctx, document)
 		if err != nil {
-			info = info + " " + title + ":" + err.Error() + "\r"
+			infos = append(infos, fmt.Sprintf("%s:%s", title, err.Error()))
 		}
 		for _, text := range texts {
-			_, info, _ := client.AskChatGpt(ctx, 4000, []string{"回答"}, defaultAnswerTmpl, text, query)
-			if !strings.Contains(info, "没有相关") {
-				return true, info, questionMap, info, nil
+			_, answer, _ := client.AskChatGpt(ctx, 4000, []string{"回答"}, defaultAnswerTmpl, text, query)
+			if !strings.Contains(answer, "没有相关") {
+				return true, answer, questionMap, infos, nil
 			}
 		}
 	}
-	return true, info, questionMap, info, nil
+	return true, "没有搜索到文档的答案。可以指定 --searchKey=" + query + "指定相应的搜索文档", questionMap, infos, nil
 }
 
 func (client *SearchChainClient) AskWithDoc(ctx *SearchContext, getKeys []string, content string, args ...any) (map[string]string, error) {

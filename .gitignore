@@ -7,3 +7,5 @@ dist/
 laiye/
 src/gpt_search_test.go
 cache
+answer_record.txt
+src/sample.txt

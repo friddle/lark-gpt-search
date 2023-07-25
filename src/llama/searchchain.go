@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/chyroc/lark"
 	chatgpt "github.com/go-zoox/chatgpt-client"
+	"github.com/tmc/langchaingo/textsplitter"
 	"log"
 	"os"
 	"regexp"
@@ -17,8 +18,18 @@ import (
 type SearchProcessFunc = func(isAuth bool, content string, docToken []string, err error) error
 type SearchChainClient struct {
 	gptClient      chatgpt.Client
+	textSpliter    textsplitter.TokenSplitter
 	feishuClient   *feishu.FeishuClient
 	searchContexts map[string]*SearchContext
+}
+
+func getTextTokenSplit() textsplitter.TokenSplitter {
+	textSpliter := textsplitter.NewTokenSplitter()
+	textSpliter.ChunkSize, _ = strconv.Atoi(utils.GetOsEnv("TOKEN_CHUNK_SIZE", "512"))
+	textSpliter.ChunkOverlap, _ = strconv.Atoi(utils.GetOsEnv("TOKEN_CHUNK_OVERLAP", "100"))
+	textSpliter.EncodingName = utils.GetOsEnv("TOKEN_ENCODING", "cl100k_base")
+	textSpliter.ModelName = "gpt-3.5-turbo"
+	return textSpliter
 }
 
 func NewSearchClient(gptClient chatgpt.Client, feishuClient *feishu.FeishuClient) (*SearchChainClient, error) {
@@ -26,6 +37,7 @@ func NewSearchClient(gptClient chatgpt.Client, feishuClient *feishu.FeishuClient
 		gptClient:      gptClient,
 		feishuClient:   feishuClient,
 		searchContexts: make(map[string]*SearchContext),
+		textSpliter:    getTextTokenSplit(),
 	}, nil
 }
 
@@ -144,8 +156,11 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 
 	_, answer, moreQuestion, info, err := client.TranslateAnswer(context, question, documentContent)
 	if err != nil {
-		reply(true, "理解答案失败(请不要使用太长的文档),ChatGPT返回:"+info, nil, nil, err)
+		reply(true, "导出结果失败:"+answer, moreQuestion, links, nil)
 		return
+	}
+	if info != "" {
+		reply(true, info, nil, nil, nil)
 	}
 	reply(true, "结果为:"+answer, moreQuestion, links, nil)
 	logQuestionToFile(question, answer)
@@ -153,8 +168,9 @@ func (client *SearchChainClient) Search(context *SearchContext, question string,
 }
 
 func logQuestionToFile(question string, answer string) {
-	log.Printf("question:" + question + "answer:" + answer)
-
+	// append text to file
+	f, _ := os.OpenFile("answer_record.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f.WriteString("question:" + question + "answer:" + answer)
 }
 
 // 是否继续搜索,并且把问题转换为关键词
@@ -235,20 +251,26 @@ func splitByLength(str string, length int) []string {
 	return result
 }
 
-func (client *SearchChainClient) CleanMarkDownToText(ctx *SearchContext, text string) []string {
-	maxLength := 5000
-	output := text
+func (client *SearchChainClient) SplitMarkDownText(ctx *SearchContext, text string) ([]string, error) {
+	var output = text
 	output = strings.Replace(output, "#", "", -1)
 	output = strings.Replace(output, "<strong>", "", -1)
 	output = strings.Replace(output, "</strong>", "", -1)
 	re, _ := regexp.Compile(`\n\n+`)
 	output = re.ReplaceAllString(output, "\n")
-	return splitByLength(output, maxLength)
+	//不允许太长的文档。非常慢
+	onePage, err := client.textSpliter.SplitText(output)
+	maxPage, _ := strconv.Atoi(utils.GetOsEnv("PAGE_MAX_SPLIT_ITER", "3"))
+	if err != nil {
+		return onePage, err
+	}
+	if len(onePage) > maxPage {
+		return onePage[:maxPage], errors.New("文档过长,直接过滤文档到前几页")
+	}
+	return onePage, nil
 }
 
-//可以把这个问题记录下来。向量化。并且提供商搜索回答
-
-// TODO: 这边应该一个简单的for循环来实现效果
+// 可以把这个问题记录下来。向量化。并且提供商搜索回答
 func (client *SearchChainClient) TranslateAnswer(ctx *SearchContext, query string, docs map[string]string) (bool, string, map[string]string, string, error) {
 	defaultAnswerTmpl := `
 You are a professional problem solve export  
@@ -271,8 +293,11 @@ And Output with format:
 
 	questionMap := make(map[string]string)
 	var info = ""
-	for _, document := range docs {
-		texts := client.CleanMarkDownToText(ctx, document)
+	for title, document := range docs {
+		texts, err := client.SplitMarkDownText(ctx, document)
+		if err != nil {
+			info = info + " " + title + ":" + err.Error() + "\r"
+		}
 		for _, text := range texts {
 			_, info, _ := client.AskChatGpt(ctx, 4000, []string{"回答"}, defaultAnswerTmpl, text, query)
 			if !strings.Contains(info, "没有相关") {

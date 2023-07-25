@@ -62,3 +62,11 @@ func FilterStrings(origin []string, dest []string) []string {
 	}
 	return result
 }
+
+func GetOsEnv(env string, defaultenv string) string {
+	envvalue := os.Getenv(env)
+	if env != "" {
+		return envvalue
+	}
+	return defaultenv
+}

@@ -20,5 +20,4 @@ func AuthPage(c *zoox.Context, url *url.URL, feishuApiClient *feishu.FeishuClien
 	logger.Info(fmt.Sprintf("token:%v", token))
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusOK, "%s", string(fileStr))
-	c.Write(fileStr)
 }

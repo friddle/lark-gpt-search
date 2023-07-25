@@ -29,6 +29,12 @@ func GetInitClient() (*feishu.FeishuClient, *llama.SearchChainClient, *chatbot.C
 	return feishuApiClient, searchClient, &bot
 }
 
+func GetUserAndToken() (string, string) {
+	userId := "164981201"
+	token := "u-eIUlcupGx3UaRBhR_BcjyMkkiFsBlhzzogw0hkiy25xb"
+	return userId, token
+}
+
 func TestAuthUrl(t *testing.T) {
 	ctx := context.Background()
 	feishuConf := config.ReadFeishuConfig()
@@ -46,10 +52,29 @@ func TestAuthUrl(t *testing.T) {
 func TestSearch(t *testing.T) {
 	feishuClient, searchClient, _ := GetInitClient()
 	conversationId := string(uuid.V4())
-	userId := "164981201"
-	token := "u-dSyhiQWxx018UznesaT9kH50jZkh1hz1OG00lls022pd"
+	userId, token := GetUserAndToken()
 	argsMap := map[string]string{}
-	question := "2022Q4的RPA的产品规划"
+	question := "Laipvt增么安装监控"
+	context, err := searchClient.GetContext(conversationId, userId, argsMap)
+	if err != nil {
+		panic(fmt.Sprintf("+%v", err))
+	}
+	feishuClient.UserTokens[userId] = &token
+	searchClient.Search(context, question, func(isAuth bool, content string, moreQuestion map[string]string, links map[string]string, err error) {
+		if !isAuth {
+			panic("没有登录")
+		}
+		println(content)
+	})
+}
+
+func TestSelfSearch(t *testing.T) {
+	feishuClient, searchClient, _ := GetInitClient()
+	conversationId := string(uuid.V4())
+	argsMap := map[string]string{}
+	argsMap["isSelf"] = "true"
+	question := "Laipvt增么安装监控"
+	userId, token := GetUserAndToken()
 	context, err := searchClient.GetContext(conversationId, userId, argsMap)
 	if err != nil {
 		panic(fmt.Sprintf("+%v", err))

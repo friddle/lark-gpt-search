@@ -3,7 +3,6 @@ name: docker image ci
 on:
   push:
     tags: [ "*v" ]
-    branches: ["master"]
 
 jobs:
   build:

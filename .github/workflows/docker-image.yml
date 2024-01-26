@@ -19,4 +19,4 @@ jobs:
       run: docker build . --file Dockerfile --tag friddlecopper/lark-gpt-search:${{github.ref_name}}
       
     - name: push images
-      run: docker push friddle/lark-gpt-search:${{github.ref_name}}
+      run: docker push friddlecopper/lark-gpt-search:${{github.ref_name}}

@@ -4,7 +4,7 @@ COPY . .
 RUN go mod download
 RUN go build -o dist/feishu_gpt_search main.go
 
-FROM alpine:3.36
+FROM alpine:latest
 WORKDIR /app/
 COPY --from=builder  /src/dist/feishu_gpt_search /app/feishu_gpt_search
 VOLUME /app/.feishu.env

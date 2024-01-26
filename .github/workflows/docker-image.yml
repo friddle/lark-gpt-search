@@ -16,7 +16,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag docker friddle/lark-gpt-search:${{github_ref}}
+      run: docker build . --file Dockerfile --tag docker friddlecopper/lark-gpt-search:${{github_ref}}
       
     - name: push images
-      run: docker push friddle/lark-gpt-search:${{github_ref}}
+      run: docker push friddle/lark-gpt-search:${{github.ref}}
